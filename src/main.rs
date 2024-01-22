@@ -20,43 +20,47 @@ struct Size {
     height: u32,
 }
 
+pub fn load_image_from_path(image_path: &str) -> RgbImage{
+    ImageReader::open(image_path).unwrap().decode().unwrap().into_rgb8()
+}
+
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
-struct Options {
+pub struct Options {
     /// Location of the target image
     #[arg(short, long)]
-    image: String,
+    pub image: String,
 
     /// Saved result location
     #[arg(short, long, default_value_t=String::from("out.png"))]
-    output: String,
+    pub output: String,
 
     /// Location of the tiles
     #[arg(short, long)]
-    tiles: String,
+    pub tiles: String,
 
     /// Scaling factor of the image
     #[arg(long, default_value_t = 1)]
-    scaling: u32,
+    pub scaling: u32,
 
     /// Size of the tiles
     #[arg(long, default_value_t = 5)]
-    tile_size: u32,
+    pub tile_size: u32,
 
     /// Remove used tile
     #[arg(short, long)]
-    remove_used: bool,
+    pub remove_used: bool,
 
     #[arg(short, long)]
-    verbose: bool,
+    pub verbose: bool,
 
     /// Use SIMD when available
     #[arg(short, long)]
-    simd: bool,
+    pub simd: bool,
 
     /// Specify number of threads to use, leave blank for default
     #[arg(short, long, default_value_t = 1)]
-    num_thread: usize,
+    pub num_thread: usize,
 }
 
 fn count_available_tiles(images_folder: &str) -> i32 {
@@ -275,7 +279,7 @@ fn find_best_tile(target: &RgbImage, tiles: &Vec<RgbImage>, simd: bool, verbose:
     return index_best_tile;
 }
 
-fn compute_mosaic(args: Options) {
+pub fn compute_mosaic(args: Options) {
     let tile_size = Size {
         width: args.tile_size,
         height: args.tile_size,
@@ -346,26 +350,88 @@ fn main() {
     let args = Options::parse();
     compute_mosaic(args);
 }
-
 #[cfg(test)]
 mod tests {
-    #[test]
+    use super::*;
+   #[test]
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    fn unit_test_x86() {
-        // TODO
-        assert!(false);
+    fn unit_test_l1_x86_sse2() {
+        // Test images similaires
+        let image1 = load_image_from_path("assets/tiles-small/tile-4.png");
+        let image2 = load_image_from_path("assets/tiles-small/tile-4.png");
+        let result = unsafe{l1_x86_sse2(&image1,&image2)};
+        assert_eq!(result, 0);
+        // Test images différentes
+        let image1 = load_image_from_path("assets/tiles-small/tile-1.png");
+        let image2 = load_image_from_path("assets/tiles-small/tile-2.png");
+        let result = unsafe{l1_x86_sse2(&image1, &image2)};
+        assert!(result > 0);
     }
 
     #[test]
     #[cfg(target_arch = "aarch64")]
-    fn unit_test_aarch64() {
-        // TODO
-        assert!(false);
+    fn unit_test_l1_neon() {
+        // Test les images similaires
+        let image1 = load_image_from_path("assets/tiles-small/tile-4.png");
+        let image2 = load_image_from_path("assets/tiles-small/tile-4.png");
+        let result = unsafe{l1_neon(&image1,&image2)};
+        assert_eq!(result, 0);
+        // Test images différentes
+        let image1 = load_image_from_path("assets/tiles-small/tile-1.png");
+        let image2 = load_image_from_path("assets/tiles-small/tile-2.png");
+        let result = unsafe{l1_neon(&image1,&image2)};        
+        assert!(result > 0);
+    }
+    #[test]
+    fn unit_test_l1_generic() {
+        // Test images similaires
+        let image1 = load_image_from_path("assets/tiles-small/tile-4.png");
+        let image2 = load_image_from_path("assets/tiles-small/tile-4.png");
+        let result = l1_generic(&image1,&image2);
+        assert_eq!(result, 0);
+
+        // Test images différentes
+        let image1 = load_image_from_path("assets/tiles-small/tile-1.png");
+        let image2 = load_image_from_path("assets/tiles-small/tile-2.png");
+        let result = l1_generic(&image1, &image2);
+        assert!(result > 0);
     }
 
     #[test]
-    fn unit_test_generic() {
-        // TODO
-        assert!(false);
+    fn unit_test_prepare_target() {
+        let image_path = "assets/ground-truth-kit.png";
+        let scale = 2;
+        let tile_size = Size { width: 25, height: 25 }; // Taille des vignettes
+
+        match prepare_target(image_path, scale, &tile_size) {
+            Ok(resized_image) => {
+                // Calcul de la taille attendue en utilisant la formule de l'énoncé
+                let expected_width = (1900 * scale - (1900 * scale) % tile_size.width) as u32;
+                let expected_height = (1075 * scale - (1075 * scale) % tile_size.height) as u32;
+
+                assert_eq!(resized_image.width(),expected_width,  "Image width different from expected");
+                assert_eq!(resized_image.height(),expected_height, "Image height different from expected");
+            },
+            Err(e) => panic!("Failed to prepare target image: {:?}", e),
+        }
     }
+
+    #[test]
+    fn unit_test_prepare_tiles() {
+
+        // Size of tiles expected
+        let test_folder = "./assets";
+        let tile_size = Size { width: 100, height: 100 };
+        let verbose = false;
+
+        // Appel de la fonction
+        let tiles = &prepare_tiles(test_folder, &tile_size, verbose).unwrap();
+
+        // Vérifier que chaque tile a la bonne taille
+        for tile in tiles {
+            assert_eq!(tile.width(), tile_size.width);
+            assert_eq!(tile.height(), tile_size.height);
+        }
+
+    }    
 }
