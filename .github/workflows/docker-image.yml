@@ -45,7 +45,7 @@ jobs:
       run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
     - name: Génération de l'image Docker
-      run: docker build --platform =${{matrix.config.arch}} -t image -f Dockerfile .
+      run: docker build --platform=amd64 -t image -f Dockerfile .
 
     - name: Exécution de l'image Docker pour les tests
       run: docker run image cargo test
