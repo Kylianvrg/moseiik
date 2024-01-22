@@ -20,13 +20,6 @@ RUN unzip /app/assets/images.zip -d /app/assets \
     && rm /app/assets/images.zip
 
 
-
-# Téléchargez le contenu du lien Internet et décompressez-le
-#RUN wget "https://filesender.renater.fr/download.php?token=178558c6-7155-4dca-9ecf-76cbebeb422e&files_ids=33679270" -O assets/images.zip \
-    #&& unzip assets/images.zip \
-    #&& rm assets/images.zip
-
-
 # Téléchargez les dépendances
 RUN cargo build --release
 
