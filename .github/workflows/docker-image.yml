@@ -1,0 +1,43 @@
+name: CI pour Moseiik
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build_and_test:
+    strategy:
+      matrix:
+        config:
+        - {
+            name: "Test sur x86_64",
+            os: ubuntu-latest,
+            arch: amd64
+          }
+        - {
+            name: "Test sur arm64",
+            os: ubuntu-latest,
+            arch: aarch64
+          }
+
+    runs-on: ${{ matrix.config.os }}
+    name: ${{ matrix.config.name }}
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Mise en place de QEMU
+      if: matrix.config.arch == 'aarch64'
+      run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+    - name: Récupération du Dockerfile
+      run: |
+        # Ajoutez ici les commandes pour récupérer le Dockerfile
+        # Exemple: cp path/to/Dockerfile .
+
+    - name: Génération de l'image Docker
+      run: docker buildx build --platform linux/arm64 -t image_x86 --load .
+
+    - name: Exécution de l'image Docker pour les tests
+      run: docker run --platform linux/amd64 image_x86  cargo test
